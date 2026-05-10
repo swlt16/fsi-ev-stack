@@ -2,7 +2,6 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
-    env_file: .env
     ports:
       - "80:80"
       - "443:443"
@@ -35,7 +34,6 @@ services:
     image: ghcr.io/goauthentik/server:2026.2
     restart: unless-stopped
     command: server
-    env_file: .env
     environment:
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
@@ -55,7 +53,6 @@ services:
     image: ghcr.io/goauthentik/server:2026.2
     restart: unless-stopped
     command: worker
-    env_file: .env
     environment:
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
