@@ -1,0 +1,11 @@
+{$AUTHENTIK_HOST} {
+	reverse_proxy authentik-server:9000
+}
+
+{$PAPERLESS_HOST} {
+	reverse_proxy paperless:8000
+}
+
+{$OUTLINE_HOST} {
+	reverse_proxy outline:3000
+}

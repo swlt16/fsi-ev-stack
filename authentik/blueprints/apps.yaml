@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+
+version: 1
+
+metadata:
+  name: apps-outline-paperless
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+
+entries:
+  - model: authentik_providers_oauth2.oauth2provider
+    id: paperless-provider
+    identifiers:
+      name: paperless
+    attrs:
+      name: paperless
+      client_type: confidential
+      client_id: !Env PAPERLESS_OIDC_CLIENT_ID
+      client_secret: !Env PAPERLESS_OIDC_CLIENT_SECRET
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      include_claims_in_id_token: true
+      sub_mode: hashed_user_id
+      access_code_validity: minutes=1
+      access_token_validity: minutes=30
+      refresh_token_validity: days=30
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format
+            - "https://%s/accounts/oidc/authentik/login/callback/"
+            - !Env PAPERLESS_HOST
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+
+  - model: authentik_core.application
+    id: paperless-application
+    identifiers:
+      slug: paperless
+    attrs:
+      name: Paperless
+      slug: paperless
+      provider: !KeyOf paperless-provider
+      policy_engine_mode: any
+      meta_launch_url: !Format
+        - "https://%s"
+        - !Env PAPERLESS_HOST
+
+  - model: authentik_providers_oauth2.oauth2provider
+    id: outline-provider
+    identifiers:
+      name: outline
+    attrs:
+      name: outline
+      client_type: confidential
+      client_id: !Env OUTLINE_OIDC_CLIENT_ID
+      client_secret: !Env OUTLINE_OIDC_CLIENT_SECRET
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      issuer_mode: per_provider
+      include_claims_in_id_token: true
+      sub_mode: hashed_user_id
+      access_code_validity: minutes=1
+      access_token_validity: minutes=30
+      refresh_token_validity: days=30
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format
+            - "https://%s/auth/oidc.callback"
+            - !Env OUTLINE_HOST
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+
+  - model: authentik_core.application
+    id: outline-application
+    identifiers:
+      slug: outline
+    attrs:
+      name: Outline
+      slug: outline
+      provider: !KeyOf outline-provider
+      policy_engine_mode: any
+      meta_launch_url: !Format
+        - "https://%s"
+        - !Env OUTLINE_HOST

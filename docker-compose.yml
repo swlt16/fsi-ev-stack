@@ -1,0 +1,202 @@
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy
+
+  authentik-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+    volumes:
+      - authentik_db:/var/lib/postgresql/data
+    networks:
+      - authentik
+
+  authentik-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - authentik
+
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2026.2
+    restart: unless-stopped
+    command: server
+    env_file: .env
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_REDIS__HOST: authentik-redis
+    volumes:
+      - ./authentik/blueprints:/blueprints/custom:ro
+    depends_on:
+      - authentik-postgres
+      - authentik-redis
+    networks:
+      - proxy
+      - authentik
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2026.2
+    restart: unless-stopped
+    command: worker
+    env_file: .env
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_REDIS__HOST: authentik-redis
+    volumes:
+      - ./authentik/blueprints:/blueprints/custom:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - authentik-postgres
+      - authentik-redis
+    networks:
+      - authentik
+
+  paperless-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD}
+    volumes:
+      - paperless_db:/var/lib/postgresql/data
+    networks:
+      - paperless
+
+  paperless-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - paperless
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      - paperless-db
+      - paperless-redis
+    environment:
+      PAPERLESS_URL: https://${PAPERLESS_HOST}
+      PAPERLESS_ALLOWED_HOSTS: ${PAPERLESS_HOST}
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://${PAPERLESS_HOST}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      PAPERLESS_TIME_ZONE: Europe/Berlin
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+      PAPERLESS_REDIS: redis://paperless-redis:6379
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD}
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: >
+        {
+          "openid_connect": {
+            "APPS": [
+              {
+                "provider_id": "authentik",
+                "name": "authentik",
+                "client_id": "${PAPERLESS_OIDC_CLIENT_ID}",
+                "secret": "${PAPERLESS_OIDC_CLIENT_SECRET}",
+                "settings": {
+                  "server_url": "https://${AUTHENTIK_HOST}/application/o/paperless/.well-known/openid-configuration"
+                }
+              }
+            ]
+          }
+        }
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - ./paperless/consume:/usr/src/paperless/consume
+      - ./paperless/export:/usr/src/paperless/export
+    networks:
+      - proxy
+      - paperless
+
+  outline-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: outline
+      POSTGRES_USER: outline
+      POSTGRES_PASSWORD: ${OUTLINE_DB_PASSWORD}
+    volumes:
+      - outline_db:/var/lib/postgresql/data
+    networks:
+      - outline
+
+  outline-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - outline
+
+  outline:
+    image: docker.getoutline.com/outlinewiki/outline:latest
+    restart: unless-stopped
+    depends_on:
+      - outline-postgres
+      - outline-redis
+    environment:
+      URL: https://${OUTLINE_HOST}
+      PORT: 3000
+      FORCE_HTTPS: "true"
+      SECRET_KEY: ${OUTLINE_SECRET_KEY}
+      UTILS_SECRET: ${OUTLINE_UTILS_SECRET}
+      DATABASE_URL: postgres://outline:${OUTLINE_DB_PASSWORD}@outline-postgres:5432/outline
+      REDIS_URL: redis://outline-redis:6379
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+      OIDC_ISSUER_URL: https://${AUTHENTIK_HOST}/application/o/outline/
+      OIDC_CLIENT_ID: ${OUTLINE_OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET}
+      OIDC_DISPLAY_NAME: authentik
+      OIDC_SCOPES: openid profile email
+      OIDC_LOGOUT_URI: https://${AUTHENTIK_HOST}/application/o/outline/end-session/
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+    volumes:
+      - outline_data:/var/lib/outline/data
+    networks:
+      - proxy
+      - outline
+
+networks:
+  proxy:
+  authentik:
+  paperless:
+  outline:
+
+volumes:
+  caddy_data:
+  caddy_config:
+  authentik_db:
+  paperless_db:
+  paperless_data:
+  paperless_media:
+  outline_db:
+  outline_data:
