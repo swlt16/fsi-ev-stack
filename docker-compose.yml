@@ -16,8 +16,10 @@ services:
             reverse_proxy authentik-server:9000 {
                 header_up Host {host}
                 header_up X-Forwarded-Host {host}
-                header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-                header_up X-Forwarded-Port {http.request.header.X-Forwarded-Port}
+                header_up X-Forwarded-Proto https
+                header_up X-Forwarded-Port 443
+                header_up Upgrade {http.request.header.Upgrade}
+                header_up Connection {http.request.header.Connection}
             }
         }
 
@@ -25,8 +27,10 @@ services:
             reverse_proxy paperless:8000 {
                 header_up Host {host}
                 header_up X-Forwarded-Host {host}
-                header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-                header_up X-Forwarded-Port {http.request.header.X-Forwarded-Port}
+                header_up X-Forwarded-Proto https
+                header_up X-Forwarded-Port 443
+                header_up Upgrade {http.request.header.Upgrade}
+                header_up Connection {http.request.header.Connection}
             }
         }
 
@@ -34,8 +38,10 @@ services:
             reverse_proxy outline:3000 {
                 header_up Host {host}
                 header_up X-Forwarded-Host {host}
-                header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-                header_up X-Forwarded-Port {http.request.header.X-Forwarded-Port}
+                header_up X-Forwarded-Proto https
+                header_up X-Forwarded-Port 443
+                header_up Upgrade {http.request.header.Upgrade}
+                header_up Connection {http.request.header.Connection}
             }
         }
 
@@ -43,8 +49,10 @@ services:
             reverse_proxy static-site:8080 {
                 header_up Host {host}
                 header_up X-Forwarded-Host {host}
-                header_up X-Forwarded-Proto {http.request.header.X-Forwarded-Proto}
-                header_up X-Forwarded-Port {http.request.header.X-Forwarded-Port}
+                header_up X-Forwarded-Proto https
+                header_up X-Forwarded-Port 443
+                header_up Upgrade {http.request.header.Upgrade}
+                header_up Connection {http.request.header.Connection}
             }
         }
         EOF
