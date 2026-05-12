@@ -166,8 +166,9 @@ services:
       OUTLINE_HOST: ${OUTLINE_HOST}
       OUTLINE_OIDC_CLIENT_ID: ${OUTLINE_OIDC_CLIENT_ID}
       OUTLINE_OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET}
-    volumes:
-      - ./authentik/blueprints:/blueprints/custom:ro
+    configs:
+      - source: authentik_apps_blueprint
+        target: /blueprints/custom/apps.yaml
     depends_on:
       - authentik-postgres
       - authentik-redis
@@ -192,8 +193,10 @@ services:
       OUTLINE_HOST: ${OUTLINE_HOST}
       OUTLINE_OIDC_CLIENT_ID: ${OUTLINE_OIDC_CLIENT_ID}
       OUTLINE_OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET}
+    configs:
+      - source: authentik_apps_blueprint
+        target: /blueprints/custom/apps.yaml
     volumes:
-      - ./authentik/blueprints:/blueprints/custom:ro
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - authentik-postgres
@@ -226,9 +229,9 @@ services:
       - paperless-db
       - paperless-redis
     environment:
-      PAPERLESS_URL: http://${PAPERLESS_HOST}
+      PAPERLESS_URL: https://${PAPERLESS_HOST}
       PAPERLESS_ALLOWED_HOSTS: ${PAPERLESS_HOST}
-      PAPERLESS_CSRF_TRUSTED_ORIGINS: http://${PAPERLESS_HOST}
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://${PAPERLESS_HOST}
       PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
       PAPERLESS_TIME_ZONE: Europe/Berlin
       PAPERLESS_OCR_LANGUAGE: deu+eng
@@ -249,7 +252,7 @@ services:
                 "client_id": "${PAPERLESS_OIDC_CLIENT_ID}",
                 "secret": "${PAPERLESS_OIDC_CLIENT_SECRET}",
                 "settings": {
-                  "server_url": "http://${AUTHENTIK_HOST}/application/o/paperless/.well-known/openid-configuration"
+                  "server_url": "https://${AUTHENTIK_HOST}/application/o/paperless/.well-known/openid-configuration"
                 }
               }
             ]
@@ -289,7 +292,7 @@ services:
       - outline-postgres
       - outline-redis
     environment:
-      URL: http://${OUTLINE_HOST}
+      URL: https://${OUTLINE_HOST}
       PORT: 3000
       FORCE_HTTPS: "false"
       SECRET_KEY: ${OUTLINE_SECRET_KEY}
@@ -298,12 +301,12 @@ services:
       REDIS_URL: redis://outline-redis:6379
       FILE_STORAGE: local
       FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
-      OIDC_ISSUER_URL: http://${AUTHENTIK_HOST}/application/o/outline/
+      OIDC_ISSUER_URL: https://${AUTHENTIK_HOST}/application/o/outline/
       OIDC_CLIENT_ID: ${OUTLINE_OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET}
       OIDC_DISPLAY_NAME: authentik
       OIDC_SCOPES: openid profile email
-      OIDC_LOGOUT_URI: http://${AUTHENTIK_HOST}/application/o/outline/end-session/
+      OIDC_LOGOUT_URI: https://${AUTHENTIK_HOST}/application/o/outline/end-session/
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USERNAME: ${SMTP_USERNAME}
@@ -328,3 +331,98 @@ volumes:
   paperless_media:
   outline_db:
   outline_data:
+
+configs:
+  authentik_apps_blueprint:
+    content: |
+      version: 1
+
+      metadata:
+        name: apps-outline-paperless
+        labels:
+          blueprints.goauthentik.io/instantiate: "true"
+
+      entries:
+        - model: authentik_providers_oauth2.oauth2provider
+          id: paperless-provider
+          identifiers:
+            name: paperless
+          attrs:
+            name: paperless
+            client_type: confidential
+            client_id: !Env PAPERLESS_OIDC_CLIENT_ID
+            client_secret: !Env PAPERLESS_OIDC_CLIENT_SECRET
+            authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+            authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+            invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+            issuer_mode: per_provider
+            include_claims_in_id_token: true
+            sub_mode: hashed_user_id
+            access_code_validity: minutes=1
+            access_token_validity: minutes=30
+            refresh_token_validity: days=30
+            redirect_uris:
+              - matching_mode: strict
+                url: !Format
+                  - "https://%s/accounts/oidc/authentik/login/callback/"
+                  - !Env PAPERLESS_HOST
+            property_mappings:
+              - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+              - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+              - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+            signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+
+        - model: authentik_core.application
+          id: paperless-application
+          identifiers:
+            slug: paperless
+          attrs:
+            name: Paperless
+            slug: paperless
+            provider: !KeyOf paperless-provider
+            policy_engine_mode: any
+            meta_launch_url: !Format
+              - "https://%s"
+              - !Env PAPERLESS_HOST
+
+        - model: authentik_providers_oauth2.oauth2provider
+          id: outline-provider
+          identifiers:
+            name: outline
+          attrs:
+            name: outline
+            client_type: confidential
+            client_id: !Env OUTLINE_OIDC_CLIENT_ID
+            client_secret: !Env OUTLINE_OIDC_CLIENT_SECRET
+            authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+            authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+            invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+            issuer_mode: per_provider
+            include_claims_in_id_token: true
+            sub_mode: hashed_user_id
+            access_code_validity: minutes=1
+            access_token_validity: minutes=30
+            refresh_token_validity: days=30
+            redirect_uris:
+              - matching_mode: strict
+                url: !Format
+                  - "https://%s/auth/oidc.callback"
+                  - !Env OUTLINE_HOST
+            property_mappings:
+              - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+              - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+              - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+            signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+
+        - model: authentik_core.application
+          id: outline-application
+          identifiers:
+            slug: outline
+          attrs:
+            name: Outline
+            slug: outline
+            provider: !KeyOf outline-provider
+            policy_engine_mode: any
+            meta_launch_url: !Format
+              - "https://%s"
+              - !Env OUTLINE_HOST

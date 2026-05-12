@@ -29,7 +29,7 @@ entries:
       redirect_uris:
         - matching_mode: strict
           url: !Format
-            - "http://%s/accounts/oidc/authentik/login/callback/"
+            - "https://%s/accounts/oidc/authentik/login/callback/"
             - !Env PAPERLESS_HOST
       property_mappings:
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
@@ -47,7 +47,7 @@ entries:
       provider: !KeyOf paperless-provider
       policy_engine_mode: any
       meta_launch_url: !Format
-        - "http://%s"
+        - "https://%s"
         - !Env PAPERLESS_HOST
 
   - model: authentik_providers_oauth2.oauth2provider
@@ -71,7 +71,7 @@ entries:
       redirect_uris:
         - matching_mode: strict
           url: !Format
-            - "http://%s/auth/oidc.callback"
+            - "https://%s/auth/oidc.callback"
             - !Env OUTLINE_HOST
       property_mappings:
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
@@ -89,5 +89,5 @@ entries:
       provider: !KeyOf outline-provider
       policy_engine_mode: any
       meta_launch_url: !Format
-        - "http://%s"
+        - "https://%s"
         - !Env OUTLINE_HOST
