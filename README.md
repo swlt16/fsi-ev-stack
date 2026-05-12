@@ -24,11 +24,7 @@ openssl rand -hex 32
 - outline: `http://${OUTLINE_HOST}`
 - static site: `http://${STATIC_HOST}`
 
-Die statische Seite liegt unter:
-
-```text
-static/index.html
-```
+Die statische Beispielseite wird direkt im Stack erzeugt, damit Portainer keine zusaetzlichen Dateien mounten muss.
 
 ## Authentik Blueprints
 

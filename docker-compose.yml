@@ -2,6 +2,33 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    entrypoint:
+      - sh
+      - -c
+    command:
+      - |
+        cat >/etc/caddy/Caddyfile <<'EOF'
+        {
+            auto_https off
+        }
+
+        http://{$$AUTHENTIK_HOST} {
+            reverse_proxy authentik-server:9000
+        }
+
+        http://{$$PAPERLESS_HOST} {
+            reverse_proxy paperless:8000
+        }
+
+        http://{$$OUTLINE_HOST} {
+            reverse_proxy outline:3000
+        }
+
+        http://{$$STATIC_HOST} {
+            reverse_proxy static-site:8080
+        }
+        EOF
+        caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     ports:
       - "${HTTP_PORT:-80}:80"
     environment:
@@ -9,8 +36,6 @@ services:
       PAPERLESS_HOST: ${PAPERLESS_HOST}
       OUTLINE_HOST: ${OUTLINE_HOST}
       STATIC_HOST: ${STATIC_HOST}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - authentik-server
       - paperless
@@ -22,9 +47,59 @@ services:
   static-site:
     image: busybox:1.36
     restart: unless-stopped
-    command: httpd -f -p 8080 -h /www
-    volumes:
-      - ./static:/www:ro
+    command:
+      - sh
+      - -c
+      - |
+        mkdir -p /www
+        cat >/www/index.html <<'EOF'
+        <!doctype html>
+        <html lang="de">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>fsi-ev</title>
+          <style>
+            :root {
+              color-scheme: light dark;
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+
+            body {
+              display: grid;
+              min-height: 100vh;
+              margin: 0;
+              place-items: center;
+              background: Canvas;
+              color: CanvasText;
+            }
+
+            main {
+              max-width: 42rem;
+              padding: 2rem;
+            }
+
+            h1 {
+              margin: 0 0 0.75rem;
+              font-size: 2rem;
+              font-weight: 700;
+            }
+
+            p {
+              margin: 0;
+              line-height: 1.6;
+            }
+          </style>
+        </head>
+        <body>
+          <main>
+            <h1>fsi-ev</h1>
+            <p>Diese statische Seite wird vom internen HTTP-Server des Stacks ausgeliefert.</p>
+          </main>
+        </body>
+        </html>
+        EOF
+        httpd -f -p 8080 -h /www
     networks:
       - proxy
 
