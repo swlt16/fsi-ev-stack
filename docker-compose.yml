@@ -1,14 +1,30 @@
 services:
   caddy:
-    image: caddy:2
+    image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+    environment:
+      AUTHENTIK_HOST: ${AUTHENTIK_HOST}
+      PAPERLESS_HOST: ${PAPERLESS_HOST}
+      OUTLINE_HOST: ${OUTLINE_HOST}
+      STATIC_HOST: ${STATIC_HOST}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+    depends_on:
+      - authentik-server
+      - paperless
+      - outline
+      - static-site
+    networks:
+      - proxy
+
+  static-site:
+    image: busybox:1.36
+    restart: unless-stopped
+    command: httpd -f -p 8080 -h /www
+    volumes:
+      - ./static:/www:ro
     networks:
       - proxy
 
@@ -35,11 +51,18 @@ services:
     restart: unless-stopped
     command: server
     environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_REDIS__HOST: authentik-redis
+      PAPERLESS_HOST: ${PAPERLESS_HOST}
+      PAPERLESS_OIDC_CLIENT_ID: ${PAPERLESS_OIDC_CLIENT_ID}
+      PAPERLESS_OIDC_CLIENT_SECRET: ${PAPERLESS_OIDC_CLIENT_SECRET}
+      OUTLINE_HOST: ${OUTLINE_HOST}
+      OUTLINE_OIDC_CLIENT_ID: ${OUTLINE_OIDC_CLIENT_ID}
+      OUTLINE_OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET}
     volumes:
       - ./authentik/blueprints:/blueprints/custom:ro
     depends_on:
@@ -54,11 +77,18 @@ services:
     restart: unless-stopped
     command: worker
     environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_REDIS__HOST: authentik-redis
+      PAPERLESS_HOST: ${PAPERLESS_HOST}
+      PAPERLESS_OIDC_CLIENT_ID: ${PAPERLESS_OIDC_CLIENT_ID}
+      PAPERLESS_OIDC_CLIENT_SECRET: ${PAPERLESS_OIDC_CLIENT_SECRET}
+      OUTLINE_HOST: ${OUTLINE_HOST}
+      OUTLINE_OIDC_CLIENT_ID: ${OUTLINE_OIDC_CLIENT_ID}
+      OUTLINE_OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET}
     volumes:
       - ./authentik/blueprints:/blueprints/custom:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -93,9 +123,9 @@ services:
       - paperless-db
       - paperless-redis
     environment:
-      PAPERLESS_URL: https://${PAPERLESS_HOST}
+      PAPERLESS_URL: http://${PAPERLESS_HOST}
       PAPERLESS_ALLOWED_HOSTS: ${PAPERLESS_HOST}
-      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://${PAPERLESS_HOST}
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: http://${PAPERLESS_HOST}
       PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
       PAPERLESS_TIME_ZONE: Europe/Berlin
       PAPERLESS_OCR_LANGUAGE: deu+eng
@@ -116,7 +146,7 @@ services:
                 "client_id": "${PAPERLESS_OIDC_CLIENT_ID}",
                 "secret": "${PAPERLESS_OIDC_CLIENT_SECRET}",
                 "settings": {
-                  "server_url": "https://${AUTHENTIK_HOST}/application/o/paperless/.well-known/openid-configuration"
+                  "server_url": "http://${AUTHENTIK_HOST}/application/o/paperless/.well-known/openid-configuration"
                 }
               }
             ]
@@ -156,21 +186,21 @@ services:
       - outline-postgres
       - outline-redis
     environment:
-      URL: https://${OUTLINE_HOST}
+      URL: http://${OUTLINE_HOST}
       PORT: 3000
-      FORCE_HTTPS: "true"
+      FORCE_HTTPS: "false"
       SECRET_KEY: ${OUTLINE_SECRET_KEY}
       UTILS_SECRET: ${OUTLINE_UTILS_SECRET}
       DATABASE_URL: postgres://outline:${OUTLINE_DB_PASSWORD}@outline-postgres:5432/outline
       REDIS_URL: redis://outline-redis:6379
       FILE_STORAGE: local
       FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
-      OIDC_ISSUER_URL: https://${AUTHENTIK_HOST}/application/o/outline/
+      OIDC_ISSUER_URL: http://${AUTHENTIK_HOST}/application/o/outline/
       OIDC_CLIENT_ID: ${OUTLINE_OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OUTLINE_OIDC_CLIENT_SECRET}
       OIDC_DISPLAY_NAME: authentik
       OIDC_SCOPES: openid profile email
-      OIDC_LOGOUT_URI: https://${AUTHENTIK_HOST}/application/o/outline/end-session/
+      OIDC_LOGOUT_URI: http://${AUTHENTIK_HOST}/application/o/outline/end-session/
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USERNAME: ${SMTP_USERNAME}
@@ -189,8 +219,6 @@ networks:
   outline:
 
 volumes:
-  caddy_data:
-  caddy_config:
   authentik_db:
   paperless_db:
   paperless_data:

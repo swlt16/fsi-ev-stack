@@ -1,9 +1,9 @@
-# authentik + caddy + paperless + outline
+# authentik + caddy + paperless + outline + static site
 
 ## Setup
 
-1. `.env` anpassen: Domains und Secrets setzen.
-2. DNS-A/AAAA Records auf den Host zeigen lassen.
+1. `.env` anpassen: Domains, HTTP-Port und Secrets setzen.
+2. nginx mit SSL-Termination auf den HTTP-Port von Caddy weiterleiten lassen.
 3. Starten:
 
 ```bash
@@ -19,9 +19,16 @@ openssl rand -hex 32
 
 ## Dienste
 
-- authentik: `https://${AUTHENTIK_HOST}`
-- paperless: `https://${PAPERLESS_HOST}`
-- outline: `https://${OUTLINE_HOST}`
+- authentik: `http://${AUTHENTIK_HOST}`
+- paperless: `http://${PAPERLESS_HOST}`
+- outline: `http://${OUTLINE_HOST}`
+- static site: `http://${STATIC_HOST}`
+
+Die statische Seite liegt unter:
+
+```text
+static/index.html
+```
 
 ## Authentik Blueprints
 
