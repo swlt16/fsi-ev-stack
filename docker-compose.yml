@@ -7,24 +7,24 @@ services:
       - -c
     command:
       - |
-        cat >/etc/caddy/Caddyfile <<'EOF'
+        cat >/etc/caddy/Caddyfile <<EOF
         {
             auto_https off
         }
 
-        http://{$$AUTHENTIK_HOST} {
+        http://$${AUTHENTIK_HOST} {
             reverse_proxy authentik-server:9000
         }
 
-        http://{$$PAPERLESS_HOST} {
+        http://$${PAPERLESS_HOST} {
             reverse_proxy paperless:8000
         }
 
-        http://{$$OUTLINE_HOST} {
+        http://$${OUTLINE_HOST} {
             reverse_proxy outline:3000
         }
 
-        http://{$$STATIC_HOST} {
+        http://$${STATIC_HOST} {
             reverse_proxy static-site:8080
         }
         EOF
